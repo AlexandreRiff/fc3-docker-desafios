@@ -1,0 +1,81 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    image: app
+    container_name: app
+    command: >
+      sh -c \
+      "cp .env.example .env
+      && npm install
+      && npm run start"
+    volumes:
+      - ./node:/app
+    networks:
+      - web
+      - db
+    restart: on-failure
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    image: web
+    container_name: web
+    environment:
+      APP_HOST: app:3000
+    ports:
+      - 80:80
+    networks:
+      - web
+    restart: on-failure
+    depends_on:
+      app:
+        condition: service_started
+
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: db
+    image: db
+    container_name: db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: node
+      MYSQL_PASSWORD: node
+      MYSQL_DATABASE: nodedb
+    volumes:
+      - ./db-volume:/var/lib/mysql
+    ports:
+      - 3306:3306
+    networks:
+      - db
+    restart: on-failure
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p$$MYSQL_ROOT_PASSWORD",
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+
+networks:
+  web:
+    driver: bridge
+  db:
+    driver: bridge
